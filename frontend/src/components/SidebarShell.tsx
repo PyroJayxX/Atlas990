@@ -12,13 +12,13 @@ type SidebarShellProps = {
 
 const sidebarItems: SidebarItem[] = [
   { label: 'Overview', path: '/' },
-  { label: 'High Priority', path: '/lead-scoring/13-2874925' },
-  { label: 'Bulk Export', path: '/lookalike-match/13-2874925' },
+  { label: 'Lead Score Analytics', path: '/lead-scoring/13-2874925' },
+  { label: 'Vector Similarity Search', path: '/lookalike-match/13-2874925' },
 ]
 
 function SidebarShell({ activeLabel }: SidebarShellProps) {
   return (
-    <aside className="flex w-[350px] flex-col border-r border-white/10 bg-black px-4 py-4">
+    <aside className="flex w-[350px] flex-col border-r border-white/10 bg-[#111111] px-4 py-4">
       <SidebarBrand />
 
       <nav className="mt-5 space-y-1">

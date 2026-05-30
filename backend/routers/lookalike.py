@@ -183,14 +183,14 @@ def _safe_float(value) -> float | None:
 # Endpoint
 
 @router.get("/lookalike/{ein}", response_model=LookalikeResponse)
-async def get_lookalikes(ein: str, k: int = 5) -> LookalikeResponse:
+async def get_lookalikes(ein: str, k: int = 6) -> LookalikeResponse:
     """
     Return the top-K financially similar organizations for a given EIN.
 
     Parameters
     ----------
     ein : str   Nine-digit EIN (with or without hyphen — normalized internally)
-    k   : int   Number of lookalikes to return (default 5, max 20)
+    k   : int   Number of lookalikes to return (default 6, max 20)
 
     Returns
     -------
@@ -230,3 +230,59 @@ async def get_lookalikes(ein: str, k: int = 5) -> LookalikeResponse:
         target=OrgProfile(**target_profile),
         lookalikes=lookalikes,
     )
+
+class OrgSummary(BaseModel):
+    ein:          str
+    org_name:     str
+    org_state:    str | None
+    org_city:     str | None
+    org_ntee_code: str | None
+    tax_prd_yr:   int
+    totrevenue:   float | None
+    totassetsend: float | None
+
+
+class OrgListResponse(BaseModel):
+    total: int
+    orgs:  list[OrgSummary]
+
+
+@router.get("/organizations", response_model=OrgListResponse)
+async def get_organizations() -> OrgListResponse:
+    """
+    Return all orgs in the feature matrix (one row per org, most recent filing).
+    Used to populate the dataset table on the frontend.
+    """
+    _engine.load()
+
+    clean_df = _load_clean()
+
+    # Most recent filing per EIN — same slice as feature_matrix
+    latest = (
+        clean_df
+        .sort_values("tax_prd_yr", ascending=False)
+        .drop_duplicates(subset="ein")
+        .reset_index(drop=True)
+    )
+
+    # Filter to only EINs that are in the feature matrix
+    valid_eins = set(_engine.lookup["ein"].tolist())
+    latest = latest[latest["ein"].isin(valid_eins)]
+
+    orgs: list[OrgSummary] = []
+    for _, row in latest.iterrows():
+        orgs.append(OrgSummary(
+            ein=          str(row["ein"]),
+            org_name=     str(row.get("org_name", "")),
+            org_state=    row.get("org_state"),
+            org_city=     row.get("org_city"),
+            org_ntee_code=row.get("org_ntee_code"),
+            tax_prd_yr=   int(row["tax_prd_yr"]),
+            totrevenue=   _safe_float(row.get("totrevenue")),
+            totassetsend= _safe_float(row.get("totassetsend")),
+        ))
+
+    # Sort by revenue descending — largest orgs first in the table
+    orgs.sort(key=lambda o: o.totrevenue or 0, reverse=True)
+
+    return OrgListResponse(total=len(orgs), orgs=orgs)
