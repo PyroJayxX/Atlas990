@@ -1,11 +1,7 @@
-"""
-main.py
-Atlas990 — FastAPI entrypoint
-"""
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.lookalike import router as lookalike_router
+from routers.scoring import router as scoring_router
 
 app = FastAPI(
     title="Atlas990 API",
@@ -22,6 +18,7 @@ app.add_middleware(
 )
 
 app.include_router(lookalike_router)
+app.include_router(scoring_router)
 
 
 @app.get("/health")

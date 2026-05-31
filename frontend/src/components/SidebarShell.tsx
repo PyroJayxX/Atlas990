@@ -11,9 +11,10 @@ type SidebarShellProps = {
 }
 
 const sidebarItems: SidebarItem[] = [
-  { label: 'Overview', path: '/' },
-  { label: 'Lead Score Analytics', path: '/lead-scoring/13-2874925' },
-  { label: 'Vector Similarity Search', path: '/lookalike-match/13-2874925' },
+  { label: 'Overview',      path: '/' },
+  { label: 'Formula Scoring', path: '/lead-scoring/formula' },
+  { label: 'XGBoost Scoring',      path: '/lead-scoring/model' },
+  { label: 'Vector Similarity Search',     path: '/lookalike-match' },
 ]
 
 function SidebarShell({ activeLabel }: SidebarShellProps) {
@@ -43,6 +44,10 @@ function SidebarShell({ activeLabel }: SidebarShellProps) {
           )
         })}
       </nav>
+      <div className="mt-auto border-t border-white/10 pt-4">
+        <p className="mt-1 text-[1.25rem] text-[#444444]">IRS 990 Intelligence Engine</p>
+        <p className="mt-3 text-[0.8rem] text-[#333333]">v0.1.0 · Development Build</p>
+      </div>
     </aside>
   )
 }

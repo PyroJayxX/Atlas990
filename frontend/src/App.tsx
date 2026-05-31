@@ -1,15 +1,16 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
-import LeadScoring from './pages/LeadScoring'
+import FormulaScoring from './pages/FormulaScoring'
+import ModelScoring from './pages/ModelScoring'
 import LookalikeMatch from './pages/LookalikeMatch'
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/lead-scoring/:ein" element={<LeadScoring />} />
-      <Route path="/lookalike-match/:ein" element={<LookalikeMatch />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/"                     element={<Dashboard />} />
+      <Route path="/lead-scoring/formula" element={<FormulaScoring />} />
+      <Route path="/lead-scoring/model"   element={<ModelScoring />} />
+      <Route path="/lookalike-match"      element={<LookalikeMatch />} />
     </Routes>
   )
 }
