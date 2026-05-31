@@ -21,7 +21,7 @@ function SidebarShell({ activeLabel }: SidebarShellProps) {
   const location = useLocation()
 
   return (
-    <aside className="flex w-[350px] flex-col border-r border-white/10 bg-[#111111] px-4 py-4">
+    <aside className="flex w-[300px] flex-col border-r border-white/10 bg-[#111111] px-4 py-4">
       <SidebarBrand />
 
       <nav className="mt-5 space-y-1">
