@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AtmosphericCard from '../components/AtmosphericCard'
+import ExportModal from '../components/ExportModal'
 import LeadScoringTopNav from '../components/LeadScoringTopNav'
 import SidebarShell from '../components/SidebarShell'
+import { downloadCsv, type CsvColumn } from '../utils/exportCsv'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,6 +25,10 @@ type ScoredOrg = {
   ein:        string
   org_name:   string
   lead_score: number
+}
+
+type OrgExportRow = OrgSummary & {
+  lead_score: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +74,9 @@ function Dashboard() {
   const [scores, setScores]         = useState<ScoredOrg[]>([])
   const [loading, setLoading]       = useState(true)
   const [query, setQuery]           = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportStart, setExportStart] = useState(1)
+  const [exportEnd, setExportEnd] = useState(20)
 
   useEffect(() => {
     Promise.all([
@@ -126,6 +135,39 @@ function Dashboard() {
       .sort((a, b) => (b.lead_score ?? 0) - (a.lead_score ?? 0))
   }, [orgs, query, scoreLookup])
 
+  useEffect(() => {
+    if (!exportOpen) return
+
+    const maxEnd = Math.max(1, Math.min(20, filtered.length))
+    setExportStart(1)
+    setExportEnd(maxEnd)
+  }, [exportOpen, filtered.length])
+
+  const previewRows = useMemo(() => {
+    if (filtered.length === 0) return []
+
+    const startIndex = Math.max(0, Math.min(filtered.length - 1, exportStart - 1))
+    const endIndex = Math.max(startIndex, Math.min(filtered.length - 1, exportEnd - 1))
+    return filtered.slice(startIndex, endIndex + 1)
+  }, [filtered, exportStart, exportEnd])
+
+  const exportColumns: CsvColumn<OrgExportRow>[] = [
+    { header: 'EIN', value: (row) => formatEIN(row.ein) },
+    { header: 'Organization', value: (row) => row.org_name },
+    { header: 'Location', value: (row) => (row.org_city && row.org_state ? `${row.org_city}, ${row.org_state}` : row.org_state ?? '—') },
+    { header: 'NTEE', value: (row) => row.org_ntee_code ?? '—' },
+    { header: 'Revenue', value: (row) => formatCurrency(row.totrevenue) },
+    { header: 'Assets', value: (row) => formatCurrency(row.totassetsend) },
+    { header: 'Score', value: (row) => (row.lead_score !== null ? row.lead_score.toFixed(1) : '—') },
+  ]
+
+  const handleExport = () => {
+    if (previewRows.length === 0) return
+
+    downloadCsv('atlas-overview-export.csv', previewRows, exportColumns)
+    setExportOpen(false)
+  }
+
   return (
     <main className="h-screen overflow-hidden bg-[#0a0a0a] text-white">
       <div className="flex h-full w-full overflow-hidden bg-[#0a0a0a]">
@@ -148,7 +190,11 @@ function Dashboard() {
                     className="h-9 w-[260px] bg-transparent px-3 text-xs text-white placeholder-[#555555] outline-none"
                   />
                 </div>
-                <button className="border border-white/10 bg-[#E50914] px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white">
+                <button
+                  type="button"
+                  onClick={() => setExportOpen(true)}
+                  className="border border-white/10 bg-[#E50914] px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white transition-colors hover:bg-[#ff1e2d]"
+                >
                   Export
                 </button>
               </div>
@@ -307,6 +353,52 @@ function Dashboard() {
           </div>
         </section>
       </div>
+
+      <ExportModal
+        open={exportOpen}
+        eyebrow="Overview Export"
+        title="Export selected registry rows"
+        description="Choose a row range from the current table order and download a CSV export."
+        onClose={() => setExportOpen(false)}
+        onPrimary={handleExport}
+        primaryLabel="Export CSV"
+        primaryDisabled={previewRows.length === 0}
+      >
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-2">
+              <span className="block text-[0.65rem] uppercase tracking-[0.28em] text-[#888888]">Start row</span>
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, filtered.length)}
+                value={exportStart}
+                onChange={(event) => setExportStart(Number(event.target.value) || 1)}
+                className="h-11 w-full border border-white/10 bg-[#0d0d0d] px-3 text-sm text-white outline-none focus:border-[#E50914]"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="block text-[0.65rem] uppercase tracking-[0.28em] text-[#888888]">End row</span>
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, filtered.length)}
+                value={exportEnd}
+                onChange={(event) => setExportEnd(Number(event.target.value) || 1)}
+                className="h-11 w-full border border-white/10 bg-[#0d0d0d] px-3 text-sm text-white outline-none focus:border-[#E50914]"
+              />
+            </label>
+          </div>
+
+          <div className="border border-white/10 bg-black/20 px-4 py-3">
+            <p className="text-sm text-white">You are exporting {previewRows.length} organizations.</p>
+            <p className="mt-1 text-xs text-[#888888]">
+              Current selection: {exportStart}–{Math.max(exportStart, exportEnd)} of {filtered.length} visible rows
+            </p>
+          </div>
+        </div>
+      </ExportModal>
     </main>
   )
 }
