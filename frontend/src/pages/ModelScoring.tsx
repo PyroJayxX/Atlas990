@@ -80,7 +80,7 @@ function OrgTable({ orgs, loading, onSelect, activeEin }: OrgTableProps) {
   }, [orgs, query])
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-white/10 px-5 py-3">
         <input
           type="text"
@@ -103,7 +103,7 @@ function OrgTable({ orgs, loading, onSelect, activeEin }: OrgTableProps) {
         ))}
       </div>
 
-      <div className="max-h-[520px] overflow-y-auto">
+      <div className="scrollbar-dark min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <span className="text-[0.65rem] uppercase tracking-[0.4em] text-[#333333]">Loading scores...</span>
@@ -342,12 +342,12 @@ function ModelScoring() {
   }, [])
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="flex min-h-screen w-full bg-[#0a0a0a]">
+    <main className="h-screen overflow-hidden bg-[#0a0a0a] text-white">
+      <div className="flex h-full w-full overflow-hidden bg-[#0a0a0a]">
         <SidebarShell activeLabel="ML Score" />
 
-        <section className="flex min-w-0 flex-1 flex-col bg-[#0a0a0a] py-4">
-          <div className="flex flex-1 flex-col w-full px-4 pr-5 lg:px-6 lg:pr-8">
+        <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0a0a0a] py-4">
+          <div className="flex min-h-0 w-full flex-1 flex-col px-4 pr-5 lg:px-6 lg:pr-8">
 
             <header className="flex items-center justify-between border border-white/10 bg-[#111111] px-6 py-4 shadow-[0_0_20px_rgba(229,9,20,0.08)]">
               <nav className="flex items-center gap-8 text-[0.72rem] uppercase tracking-[0.3em] text-[#888888]">
@@ -367,7 +367,7 @@ function ModelScoring() {
               </div>
             </header>
 
-            <section className="mt-4 flex-1 border border-white/10 bg-[#111111] shadow-[0_4px_20px_rgba(229,9,20,0.1)]">
+            <section className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border border-white/10 bg-[#111111] shadow-[0_4px_20px_rgba(229,9,20,0.1)]">
               <div className="flex items-start justify-between border-b border-white/10 px-5 py-5">
                 <div>
                   <p className="text-[0.65rem] uppercase tracking-[0.3em] text-[#888888]">
@@ -388,8 +388,8 @@ function ModelScoring() {
                 </div>
               </div>
 
-              <div className="grid h-full grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-                <div className="border-r border-white/10">
+              <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+                <div className="flex min-h-0 flex-col border-r border-white/10">
                   <div className="border-b border-white/10 px-5 py-3">
                     <p className="text-[0.65rem] uppercase tracking-[0.3em] text-[#555555]">
                       Ranked by ML Score
@@ -403,7 +403,7 @@ function ModelScoring() {
                   />
                 </div>
 
-                <div className="overflow-y-auto">
+                <div className="scrollbar-dark min-h-0 overflow-y-auto">
                   <DetailPanel
                     detail={detail}
                     loading={detailLoading}
