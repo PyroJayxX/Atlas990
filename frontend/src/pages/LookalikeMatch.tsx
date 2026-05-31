@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import AtmosphericCard from '../components/AtmosphericCard'
+import ExportModal from '../components/ExportModal'
 import LeadScoringTopNav from '../components/LeadScoringTopNav'
 import SidebarShell from '../components/SidebarShell'
+import { downloadCsv, type CsvColumn } from '../utils/exportCsv'
 
 // Types
 
@@ -263,6 +265,8 @@ function LookalikeMatch() {
   const [searching, setSearching]     = useState<boolean>(false)
   const [error, setError]             = useState<string | null>(null)
   const [activeEin, setActiveEin]     = useState<string | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [twinCount, setTwinCount] = useState(6)
 
   // Load org list on mount
   useEffect(() => {
@@ -298,6 +302,45 @@ function LookalikeMatch() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!data) {
+      setExportOpen(false)
+      return
+    }
+
+    setTwinCount(6)
+  }, [data])
+
+  const exportCount = useMemo(() => {
+    if (!data) return 0
+    return Math.min(Math.max(twinCount, 6), 20, data.lookalikes.length)
+  }, [data, twinCount])
+
+  const exportRows = useMemo(() => {
+    if (!data) return []
+    return data.lookalikes.slice(0, exportCount)
+  }, [data, exportCount])
+
+  const exportColumns: CsvColumn<LookalikeResult>[] = [
+    { header: 'Rank', value: (row) => row.rank },
+    { header: 'Organization', value: (row) => row.org_name },
+    { header: 'EIN', value: (row) => formatEIN(row.ein) },
+    { header: 'Location', value: (row) => (row.org_city && row.org_state ? `${row.org_city}, ${row.org_state}` : row.org_state ?? '—') },
+    { header: 'NTEE', value: (row) => row.org_ntee_code ?? '—' },
+    { header: 'Tax Year', value: (row) => row.tax_prd_yr },
+    { header: 'Revenue', value: (row) => formatCurrency(row.totrevenue) },
+    { header: 'Assets', value: (row) => formatCurrency(row.totassetsend) },
+    { header: 'Distance', value: (row) => row.l2_distance.toFixed(6) },
+  ]
+
+  const handleExport = () => {
+    if (!data || exportRows.length === 0) return
+
+    const safeName = data.target.org_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+    downloadCsv(`${safeName}-twins.csv`, exportRows, exportColumns)
+    setExportOpen(false)
+  }
+
   return (
     <main className="h-screen overflow-hidden bg-[#0a0a0a] text-white">
       <div className="flex h-full w-full overflow-hidden bg-[#0a0a0a]">
@@ -315,8 +358,13 @@ function LookalikeMatch() {
                   <div className="h-1.5 w-1.5 rounded-full bg-[#E50914] shadow-[0_0_6px_rgba(229,9,20,0.8)]" />
                   {orgsLoading ? 'Loading...' : `${orgs.length} orgs indexed`}
                 </div>
-                <button className="border border-white/10 bg-[#E50914] px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white">
-                  Add Lead
+                <button
+                  type="button"
+                  onClick={() => setExportOpen(true)}
+                  disabled={!data || data.lookalikes.length === 0}
+                  className="border border-white/10 bg-[#E50914] px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white transition-colors hover:bg-[#ff1e2d] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-[#666666]"
+                >
+                  Export
                 </button>
               </div>
             </header>
@@ -340,14 +388,17 @@ function LookalikeMatch() {
                   </p>
                 </div>
 
-                {data && (
-                  <div className="text-right text-[0.68rem] uppercase tracking-[0.22em] text-[#888888]">
-                    <p>Tax Period</p>
-                    <p className="mt-1 text-white">{data.target.tax_prd_yr}</p>
-                    <p className="mt-3">NTEE</p>
-                    <p className="mt-1 text-white">{data.target.org_ntee_code ?? '—'}</p>
-                  </div>
-                )}
+                <div className="flex items-start gap-3">
+                  {data && (
+                    <div className="text-right text-[0.68rem] uppercase tracking-[0.22em] text-[#888888]">
+                      <p>Tax Period</p>
+                      <p className="mt-1 text-white">{data.target.tax_prd_yr}</p>
+                      <p className="mt-3">NTEE</p>
+                      <p className="mt-1 text-white">{data.target.org_ntee_code ?? '—'}</p>
+                    </div>
+                  )}
+
+                </div>
               </div>
 
               {/* Two-panel layout */}
@@ -480,6 +531,63 @@ function LookalikeMatch() {
           </div>
         </section>
       </div>
+
+      <ExportModal
+        open={exportOpen}
+        eyebrow="Vector Export"
+        title="Export similar organizations"
+        description={data ? 'Choose how many twins to export from the current similarity results.' : 'Select an organization first to enable exports.'}
+        onClose={() => setExportOpen(false)}
+        onPrimary={handleExport}
+        primaryLabel="Export CSV"
+        primaryDisabled={!data || exportRows.length === 0}
+      >
+        <div className="space-y-5">
+          <div className="border border-white/10 bg-black/20 px-4 py-3">
+            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-[#888888]">Query organization</p>
+            <p className="mt-2 text-lg font-semibold text-white">{data?.target.org_name ?? 'No organization selected'}</p>
+            <p className="mt-1 text-xs text-[#888888]">
+              {data ? `EIN ${formatEIN(data.target.ein)}` : 'Run a vector similarity search to enable export.'}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[0.65rem] uppercase tracking-[0.28em] text-[#888888]">Twin count</span>
+              <span className="font-mono text-sm text-white">{exportCount}</span>
+            </div>
+            <input
+              type="range"
+              min={6}
+              max={20}
+              step={1}
+              value={Math.min(Math.max(twinCount, 6), 20)}
+              onChange={(event) => setTwinCount(Number(event.target.value))}
+              className="h-2 w-full cursor-pointer appearance-none bg-white/10 accent-[#E50914]"
+              disabled={!data}
+            />
+            <label className="space-y-2">
+              <span className="block text-[0.65rem] uppercase tracking-[0.28em] text-[#888888]">Manual count</span>
+              <input
+                type="number"
+                min={6}
+                max={20}
+                value={Math.min(Math.max(twinCount, 6), 20)}
+                onChange={(event) => setTwinCount(Number(event.target.value) || 6)}
+                disabled={!data}
+                className="h-11 w-full border border-white/10 bg-[#0d0d0d] px-3 text-sm text-white outline-none focus:border-[#E50914] disabled:cursor-not-allowed disabled:text-[#666666]"
+              />
+            </label>
+          </div>
+
+          <div className="border border-white/10 bg-black/20 px-4 py-3">
+            <p className="text-sm text-white">You are exporting {exportRows.length} organizations.</p>
+            <p className="mt-1 text-xs text-[#888888]">
+              Minimum 6, maximum 20, current export capped at {data ? data.lookalikes.length : 0} available twins.
+            </p>
+          </div>
+        </div>
+      </ExportModal>
     </main>
   )
 }

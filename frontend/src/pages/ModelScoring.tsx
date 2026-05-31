@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import AtmosphericCard from '../components/AtmosphericCard'
+import ExportModal from '../components/ExportModal'
 import LeadScoringTopNav from '../components/LeadScoringTopNav'
 import SidebarShell from '../components/SidebarShell'
+import { downloadCsv, type CsvColumn } from '../utils/exportCsv'
 
 // Types
 
@@ -311,6 +313,9 @@ function ModelScoring() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [activeEin, setActiveEin]     = useState<string | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportStart, setExportStart] = useState(1)
+  const [exportEnd, setExportEnd] = useState(20)
 
   useEffect(() => {
     fetch(`${API_BASE}/scores/model`)
@@ -341,6 +346,39 @@ function ModelScoring() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!exportOpen) return
+
+    const maxEnd = Math.max(1, Math.min(20, orgs.length))
+    setExportStart(1)
+    setExportEnd(maxEnd)
+  }, [exportOpen, orgs.length])
+
+  const previewRows = useMemo(() => {
+    if (orgs.length === 0) return []
+
+    const startIndex = Math.max(0, Math.min(orgs.length - 1, exportStart - 1))
+    const endIndex = Math.max(startIndex, Math.min(orgs.length - 1, exportEnd - 1))
+    return orgs.slice(startIndex, endIndex + 1)
+  }, [orgs, exportStart, exportEnd])
+
+  const exportColumns: CsvColumn<ScoredOrg>[] = [
+    { header: 'EIN', value: (row) => formatEIN(row.ein) },
+    { header: 'Organization', value: (row) => row.org_name },
+    { header: 'State', value: (row) => row.org_state ?? '—' },
+    { header: 'NTEE', value: (row) => row.org_ntee_code ?? '—' },
+    { header: 'Tax Year', value: (row) => row.tax_prd_yr },
+    { header: 'Score', value: (row) => row.lead_score.toFixed(1) },
+    { header: 'Scorer', value: (row) => row.scorer },
+  ]
+
+  const handleExport = () => {
+    if (previewRows.length === 0) return
+
+    downloadCsv('atlas-xgboost-score-export.csv', previewRows, exportColumns)
+    setExportOpen(false)
+  }
+
   return (
     <main className="h-screen overflow-hidden bg-[#0a0a0a] text-white">
       <div className="flex h-full w-full overflow-hidden bg-[#0a0a0a]">
@@ -356,7 +394,11 @@ function ModelScoring() {
                   <div className="h-1.5 w-1.5 rounded-full bg-[#E50914] shadow-[0_0_6px_rgba(229,9,20,0.8)]" />
                   {orgsLoading ? 'Loading...' : `${orgs.length} orgs scored`}
                 </div>
-                <button className="border border-white/10 bg-[#E50914] px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white">
+                <button
+                  type="button"
+                  onClick={() => setExportOpen(true)}
+                  className="border border-white/10 bg-[#E50914] px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white transition-colors hover:bg-[#ff1e2d]"
+                >
                   Export
                 </button>
               </div>
@@ -410,6 +452,52 @@ function ModelScoring() {
           </div>
         </section>
       </div>
+
+      <ExportModal
+        open={exportOpen}
+        eyebrow="XGBoost Export"
+        title="Export scored organizations"
+        description="Pick a row range from the current ranked table and download a CSV export."
+        onClose={() => setExportOpen(false)}
+        onPrimary={handleExport}
+        primaryLabel="Export CSV"
+        primaryDisabled={previewRows.length === 0}
+      >
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-2">
+              <span className="block text-[0.65rem] uppercase tracking-[0.28em] text-[#888888]">Start row</span>
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, orgs.length)}
+                value={exportStart}
+                onChange={(event) => setExportStart(Number(event.target.value) || 1)}
+                className="h-11 w-full border border-white/10 bg-[#0d0d0d] px-3 text-sm text-white outline-none focus:border-[#E50914]"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="block text-[0.65rem] uppercase tracking-[0.28em] text-[#888888]">End row</span>
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, orgs.length)}
+                value={exportEnd}
+                onChange={(event) => setExportEnd(Number(event.target.value) || 1)}
+                className="h-11 w-full border border-white/10 bg-[#0d0d0d] px-3 text-sm text-white outline-none focus:border-[#E50914]"
+              />
+            </label>
+          </div>
+
+          <div className="border border-white/10 bg-black/20 px-4 py-3">
+            <p className="text-sm text-white">You are exporting {previewRows.length} organizations.</p>
+            <p className="mt-1 text-xs text-[#888888]">
+              Current selection: {exportStart}–{Math.max(exportStart, exportEnd)} of {orgs.length} visible rows
+            </p>
+          </div>
+        </div>
+      </ExportModal>
     </main>
   )
 }
