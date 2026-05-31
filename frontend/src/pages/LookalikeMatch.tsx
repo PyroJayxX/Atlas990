@@ -45,6 +45,8 @@ type OrgListResponse = {
 // Constants
 
 const API_BASE = 'http://localhost:8000/api/v1'
+const DISPLAY_TWIN_COUNT = 6
+const MAX_EXPORT_TWIN_COUNT = 20
 
 const RATIO_LABELS: Record<string, string> = {
   program_expense_ratio: 'Program Expense Ratio',
@@ -81,6 +83,17 @@ function formatEIN(ein: string): string {
 
 function confidenceFromDistance(distance: number): number {
   return Math.max(20, Math.min(99, Math.round((1 - distance) * 100)))
+}
+
+async function fetchLookalikes(ein: string, k: number): Promise<LookalikeResponse> {
+  const res = await fetch(`${API_BASE}/lookalike/${ein}?k=${k}`)
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body?.detail ?? `HTTP ${res.status}`)
+  }
+
+  return res.json() as Promise<LookalikeResponse>
 }
 
 // Sub-components
@@ -286,14 +299,7 @@ function LookalikeMatch() {
     setActiveEin(einClean)
 
     try {
-      const res = await fetch(`${API_BASE}/lookalike/${einClean}`)
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body?.detail ?? `HTTP ${res.status}`)
-      }
-
-      const json: LookalikeResponse = await res.json()
+      const json = await fetchLookalikes(einClean, DISPLAY_TWIN_COUNT)
       setData(json)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error.')
@@ -308,18 +314,13 @@ function LookalikeMatch() {
       return
     }
 
-    setTwinCount(6)
+    setTwinCount(DISPLAY_TWIN_COUNT)
   }, [data])
 
   const exportCount = useMemo(() => {
     if (!data) return 0
-    return Math.min(Math.max(twinCount, 6), 20, data.lookalikes.length)
+    return Math.min(Math.max(twinCount, DISPLAY_TWIN_COUNT), MAX_EXPORT_TWIN_COUNT)
   }, [data, twinCount])
-
-  const exportRows = useMemo(() => {
-    if (!data) return []
-    return data.lookalikes.slice(0, exportCount)
-  }, [data, exportCount])
 
   const exportColumns: CsvColumn<LookalikeResult>[] = [
     { header: 'Rank', value: (row) => row.rank },
@@ -334,11 +335,20 @@ function LookalikeMatch() {
   ]
 
   const handleExport = () => {
-    if (!data || exportRows.length === 0) return
+    if (!data) return
 
-    const safeName = data.target.org_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
-    downloadCsv(`${safeName}-twins.csv`, exportRows, exportColumns)
-    setExportOpen(false)
+    void (async () => {
+      try {
+        const exportData = await fetchLookalikes(data.target.ein, exportCount)
+        if (exportData.lookalikes.length === 0) return
+
+        const safeName = exportData.target.org_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+        downloadCsv(`${safeName}-twins.csv`, exportData.lookalikes, exportColumns)
+        setExportOpen(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unexpected error.')
+      }
+    })()
   }
 
   return (
@@ -383,7 +393,7 @@ function LookalikeMatch() {
                   </h1>
                   <p className="mt-2 text-sm text-[#888888]">
                     {data
-                      ? 'Financial fingerprint match · Top 6 lookalike organizations'
+                      ? `Financial fingerprint match · Top ${DISPLAY_TWIN_COUNT} lookalike organizations`
                       : 'Select an organization from the dataset to run a similarity search'}
                   </p>
                 </div>
@@ -514,7 +524,7 @@ function LookalikeMatch() {
                       {/* Lookalike grid */}
                       <div className="mb-3">
                         <p className="text-[0.65rem] uppercase tracking-[0.3em] text-[#555555]">
-                          Top {data.lookalikes.length} Lookalike Organizations
+                          Top {Math.min(data.lookalikes.length, DISPLAY_TWIN_COUNT)} Lookalike Organizations
                         </p>
                       </div>
 
@@ -540,7 +550,7 @@ function LookalikeMatch() {
         onClose={() => setExportOpen(false)}
         onPrimary={handleExport}
         primaryLabel="Export CSV"
-        primaryDisabled={!data || exportRows.length === 0}
+        primaryDisabled={!data}
       >
         <div className="space-y-5">
           <div className="border border-white/10 bg-black/20 px-4 py-3">
@@ -581,9 +591,9 @@ function LookalikeMatch() {
           </div>
 
           <div className="border border-white/10 bg-black/20 px-4 py-3">
-            <p className="text-sm text-white">You are exporting {exportRows.length} organizations.</p>
+            <p className="text-sm text-white">You are exporting {exportCount} organizations.</p>
             <p className="mt-1 text-xs text-[#888888]">
-              Minimum 6, maximum 20, current export capped at {data ? data.lookalikes.length : 0} available twins.
+              Minimum {DISPLAY_TWIN_COUNT}, maximum {MAX_EXPORT_TWIN_COUNT}. Export downloads from the backend using your selected twin count, while the page stays capped at {DISPLAY_TWIN_COUNT} visible twins.
             </p>
           </div>
         </div>
