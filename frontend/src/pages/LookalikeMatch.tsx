@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import AtmosphericCard from '../components/AtmosphericCard'
+import LeadScoringTopNav from '../components/LeadScoringTopNav'
 import SidebarShell from '../components/SidebarShell'
 
 // Types
@@ -308,12 +308,7 @@ function LookalikeMatch() {
 
             {/* Top nav */}
             <header className="flex items-center justify-between border border-white/10 bg-[#111111] px-6 py-4 shadow-[0_0_20px_rgba(229,9,20,0.08)]">
-              <nav className="flex items-center gap-8 text-[0.72rem] uppercase tracking-[0.3em] text-[#888888]">
-                <Link className="transition-colors hover:text-white" to="/">Dashboard</Link>
-                <Link className="transition-colors hover:text-white" to="/lead-scoring/13-2874925">Leads</Link>
-                <span className="text-white">Segments</span>
-                <span className="cursor-pointer transition-colors hover:text-white">Analytics</span>
-              </nav>
+              <LeadScoringTopNav />
 
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-[0.65rem] uppercase tracking-[0.28em] text-[#444444]">

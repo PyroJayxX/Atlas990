@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import AtmosphericCard from '../components/AtmosphericCard'
+import LeadScoringTopNav from '../components/LeadScoringTopNav'
 import SidebarShell from '../components/SidebarShell'
 
 // ---------------------------------------------------------------------------
@@ -135,12 +136,7 @@ function Dashboard() {
 
             {/* Top nav */}
             <header className="flex items-center justify-between border border-white/10 bg-[#111111] px-6 py-4 shadow-[0_0_20px_rgba(229,9,20,0.08)]">
-              <nav className="flex items-center gap-8 text-[0.72rem] uppercase tracking-[0.3em] text-[#888888]">
-                <span className="text-white">Dashboard</span>
-                <Link className="transition-colors hover:text-white" to="/lead-scoring/formula">Formula Score</Link>
-                <Link className="transition-colors hover:text-white" to="/lead-scoring/model">ML Score</Link>
-                <Link className="transition-colors hover:text-white" to="/lookalike-match">Lookalike</Link>
-              </nav>
+              <LeadScoringTopNav />
 
               <div className="flex items-center gap-4">
                 <div className="flex items-center border border-white/10 bg-[#101010]">

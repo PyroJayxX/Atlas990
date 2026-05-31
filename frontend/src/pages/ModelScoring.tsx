@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import AtmosphericCard from '../components/AtmosphericCard'
+import LeadScoringTopNav from '../components/LeadScoringTopNav'
 import SidebarShell from '../components/SidebarShell'
 
 // Types
@@ -350,12 +350,7 @@ function ModelScoring() {
           <div className="flex min-h-0 w-full flex-1 flex-col px-4 pr-5 lg:px-6 lg:pr-8">
 
             <header className="flex items-center justify-between border border-white/10 bg-[#111111] px-6 py-4 shadow-[0_0_20px_rgba(229,9,20,0.08)]">
-              <nav className="flex items-center gap-8 text-[0.72rem] uppercase tracking-[0.3em] text-[#888888]">
-                <Link className="transition-colors hover:text-white" to="/">Dashboard</Link>
-                <Link className="transition-colors hover:text-white" to="/lead-scoring/formula">Formula Score</Link>
-                <span className="text-white">ML Score</span>
-                <Link className="transition-colors hover:text-white" to="/lookalike-match">Lookalike</Link>
-              </nav>
+              <LeadScoringTopNav />
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-[0.65rem] uppercase tracking-[0.28em] text-[#444444]">
                   <div className="h-1.5 w-1.5 rounded-full bg-[#E50914] shadow-[0_0_6px_rgba(229,9,20,0.8)]" />
