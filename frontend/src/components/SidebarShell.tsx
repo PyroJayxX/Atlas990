@@ -45,7 +45,7 @@ function SidebarShell({ activeLabel }: SidebarShellProps) {
         })}
       </nav>
       <div className="mt-auto border-t border-white/10 pt-4">
-        <p className="mt-1 text-[1.25rem] text-[#444444]">IRS 990 Intelligence Engine</p>
+        <p className="mt-1 text-[1rem] text-[#444444]">IRS 990 Intelligence Engine</p>
         <p className="mt-3 text-[0.8rem] text-[#333333]">v0.1.0 · Development Build</p>
       </div>
     </aside>

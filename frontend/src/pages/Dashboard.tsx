@@ -1,75 +1,41 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import AtmosphericCard from '../components/AtmosphericCard'
 import SidebarShell from '../components/SidebarShell'
 
-type NonprofitRow = {
-  ein: string
-  organizationName: string
-  state: string
-  totalRevenue: number
-  employees?: number
-  priority?: 'High' | 'Medium' | 'Low'
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type OrgSummary = {
+  ein:           string
+  org_name:      string
+  org_state:     string | null
+  org_city:      string | null
+  org_ntee_code: string | null
+  tax_prd_yr:    number
+  totrevenue:    number | null
+  totassetsend:  number | null
 }
 
-type SummaryCard = {
-  label: string
-  value: string
-  detail: string
+type ScoredOrg = {
+  ein:        string
+  org_name:   string
+  lead_score: number
 }
 
-const mockRows: NonprofitRow[] = [
-  {
-    ein: '13-2874925',
-    organizationName: 'Global Conservation Fund',
-    state: 'NY',
-    totalRevenue: 1420000000,
-    employees: 218,
-    priority: 'High',
-  },
-  {
-    ein: '23-1109223',
-    organizationName: 'Advanced Medical Research Inst.',
-    state: 'MA',
-    totalRevenue: 158400000,
-    employees: 84,
-    priority: 'High',
-  },
-  {
-    ein: '45-9958776',
-    organizationName: 'Urban Housing Initiative',
-    state: 'IL',
-    totalRevenue: 68000000,
-    employees: 41,
-    priority: 'Medium',
-  },
-  {
-    ein: '36-1456656',
-    organizationName: 'Children First Education',
-    state: 'CA',
-    totalRevenue: 215000000,
-    employees: 132,
-    priority: 'High',
-  },
-  {
-    ein: '12-8778635',
-    organizationName: 'Oceanic Preservation Trust',
-    state: 'FL',
-    totalRevenue: 93000000,
-    employees: 58,
-    priority: 'Medium',
-  },
-  {
-    ein: '36-1123394',
-    organizationName: 'Metropolitan Arts Council',
-    state: 'NY',
-    totalRevenue: 12000000,
-    employees: 15,
-    priority: 'Low',
-  },
-]
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
-function formatCurrency(value: number): string {
+const API_BASE = 'http://localhost:8000/api/v1'
+
+// ---------------------------------------------------------------------------
+// Formatters
+// ---------------------------------------------------------------------------
+
+function formatCurrency(value: number | null): string {
+  if (value === null || value === undefined) return '—'
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -78,127 +44,266 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
+function formatEIN(ein: string): string {
+  const clean = ein.replace('-', '').padStart(9, '0')
+  return `${clean.slice(0, 2)}-${clean.slice(2)}`
+}
+
+function scoreColor(score: number): string {
+  if (score >= 75) return '#E50914'
+  if (score >= 50) return '#ff6b35'
+  if (score >= 25) return '#f5a623'
+  return '#888888'
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
 function Dashboard() {
-  const [rows] = useState<NonprofitRow[]>(mockRows)
-  const [summaryCards, setSummaryCards] = useState<SummaryCard[]>([])
+  const navigate = useNavigate()
+
+  const [orgs, setOrgs]             = useState<OrgSummary[]>([])
+  const [scores, setScores]         = useState<ScoredOrg[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [query, setQuery]           = useState('')
 
   useEffect(() => {
-    const aggregate = rows.reduce((sum, row) => sum + row.totalRevenue, 0)
-    const highPriority = rows.filter((row) => row.priority === 'High').length
-    const peak = rows.reduce((max, row) => Math.max(max, row.totalRevenue), 0)
-
-    setSummaryCards([
-      {
-        label: 'Aggregate Market Value',
-        value: formatCurrency(aggregate),
-        detail: 'Across the current IRS 990 registry',
-      },
-      {
-        label: 'Active Entities',
-        value: rows.length.toLocaleString('en-US'),
-        detail: `${highPriority} flagged for immediate review`,
-      },
-      {
-        label: 'Critical Alerts',
-        value: rows.filter((row) => row.totalRevenue >= 100000000).length.toString(),
-        detail: `Peak revenue signal ${formatCurrency(peak)}`,
-      },
+    Promise.all([
+      fetch(`${API_BASE}/organizations`).then((r) => r.json()),
+      fetch(`${API_BASE}/scores/formula`).then((r) => r.json()),
     ])
-  }, [rows])
+      .then(([orgData, scoreData]) => {
+        setOrgs(orgData.orgs ?? [])
+        setScores(scoreData.orgs ?? [])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Build score lookup map
+  const scoreLookup = useMemo(() => {
+    const map: Record<string, number> = {}
+    scores.forEach((s) => { map[s.ein] = s.lead_score })
+    return map
+  }, [scores])
+
+  // Aggregate metrics
+  const totalRevenue = useMemo(
+    () => orgs.reduce((sum, o) => sum + (o.totrevenue ?? 0), 0),
+    [orgs]
+  )
+
+  const topScore = useMemo(
+    () => scores.length > 0 ? Math.max(...scores.map((s) => s.lead_score)) : 0,
+    [scores]
+  )
+
+  const topScoreOrg = useMemo(
+    () => scores.find((s) => s.lead_score === topScore),
+    [scores, topScore]
+  )
+
+  const highPriorityCount = useMemo(
+    () => scores.filter((s) => s.lead_score >= 75).length,
+    [scores]
+  )
+
+  // Filtered table rows — merge score into org
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    return orgs
+      .filter((o) =>
+        !q ||
+        o.org_name.toLowerCase().includes(q) ||
+        o.ein.includes(q) ||
+        (o.org_state?.toLowerCase().includes(q) ?? false) ||
+        (o.org_city?.toLowerCase().includes(q) ?? false) ||
+        (o.org_ntee_code?.toLowerCase().includes(q) ?? false)
+      )
+      .map((o) => ({ ...o, lead_score: scoreLookup[o.ein] ?? null }))
+      .sort((a, b) => (b.lead_score ?? 0) - (a.lead_score ?? 0))
+  }, [orgs, query, scoreLookup])
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="flex min-h-screen w-full bg-[#0a0a0a]">
+    <main className="h-screen overflow-hidden bg-[#0a0a0a] text-white">
+      <div className="flex h-full w-full overflow-hidden bg-[#0a0a0a]">
         <SidebarShell activeLabel="Overview" />
 
-        <section className="flex min-w-0 flex-1 flex-col bg-[#0a0a0a] py-4">
-          <div className="flex flex-1 flex-col w-full px-4 pr-5 lg:px-6 lg:pr-8">
+        <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0a0a0a] py-4">
+          <div className="flex min-h-0 w-full flex-1 flex-col px-4 pr-5 lg:px-6 lg:pr-8">
+
+            {/* Top nav */}
             <header className="flex items-center justify-between border border-white/10 bg-[#111111] px-6 py-4 shadow-[0_0_20px_rgba(229,9,20,0.08)]">
               <nav className="flex items-center gap-8 text-[0.72rem] uppercase tracking-[0.3em] text-[#888888]">
                 <span className="text-white">Dashboard</span>
-                <Link className="transition-colors hover:text-white" to="/lead-scoring/13-2874925">
-                  Leads
-                </Link>
-                <Link className="transition-colors hover:text-white" to="/lookalike-match/13-2874925">
-                  Segments
-                </Link>
-                <span className="transition-colors hover:text-white">Analytics</span>
+                <Link className="transition-colors hover:text-white" to="/lead-scoring/formula">Formula Score</Link>
+                <Link className="transition-colors hover:text-white" to="/lead-scoring/model">ML Score</Link>
+                <Link className="transition-colors hover:text-white" to="/lookalike-match">Lookalike</Link>
               </nav>
 
               <div className="flex items-center gap-4">
-                <div className="flex h-9 w-[300px] items-center border border-white/10 bg-[#101010] px-3 text-xs text-[#888888]">
-                  Search nonprofit matrix...
+                <div className="flex items-center border border-white/10 bg-[#101010]">
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search registry..."
+                    className="h-9 w-[260px] bg-transparent px-3 text-xs text-white placeholder-[#555555] outline-none"
+                  />
                 </div>
-                <div className="h-4 w-4 rounded-full border border-white/20" />
-                <div className="h-4 w-4 rounded-full border border-white/20" />
-                <button className="border border-white/10 bg-[#161616] px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white">
-                  Add Lead
+                <button className="border border-white/10 bg-[#E50914] px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white">
+                  Export
                 </button>
               </div>
             </header>
 
+            {/* Summary cards */}
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
-              {summaryCards.map((card) => (
-                <AtmosphericCard key={card.label} className="px-5 py-4">
-                  <p className="text-[0.65rem] uppercase tracking-[0.3em] text-[#888888]">{card.label}</p>
-                  <div className="mt-4 text-4xl font-black tracking-[-0.06em] text-white">
-                    {card.value}
-                  </div>
-                  <p className="mt-3 text-xs uppercase tracking-[0.22em] text-[#888888]">{card.detail}</p>
-                </AtmosphericCard>
-              ))}
+              <AtmosphericCard className="px-5 py-4">
+                <p className="text-[0.65rem] uppercase tracking-[0.3em] text-[#888888]">
+                  Aggregate Market Value
+                </p>
+                <div className="mt-4 text-4xl font-black tracking-[-0.06em] text-white">
+                  {loading ? '—' : formatCurrency(totalRevenue)}
+                </div>
+                <p className="mt-3 text-xs uppercase tracking-[0.22em] text-[#888888]">
+                  Total revenue across {orgs.length} indexed organizations
+                </p>
+              </AtmosphericCard>
+
+              <AtmosphericCard className="px-5 py-4">
+                <p className="text-[0.65rem] uppercase tracking-[0.3em] text-[#888888]">
+                  High Priority Leads
+                </p>
+                <div className="mt-4 text-4xl font-black tracking-[-0.06em] text-[#E50914]"
+                  style={{ textShadow: '0 0 30px rgba(229,9,20,0.5)' }}>
+                  {loading ? '—' : highPriorityCount}
+                </div>
+                <p className="mt-3 text-xs uppercase tracking-[0.22em] text-[#888888]">
+                  Organizations scoring above 75 · Formula engine
+                </p>
+              </AtmosphericCard>
+
+              <AtmosphericCard className="px-5 py-4">
+                <p className="text-[0.65rem] uppercase tracking-[0.3em] text-[#888888]">
+                  Top Lead Score
+                </p>
+                <div className="mt-4 text-4xl font-black tracking-[-0.06em] text-white">
+                  {loading ? '—' : `${topScore.toFixed(1)}`}
+                </div>
+                <p className="mt-3 text-xs uppercase tracking-[0.22em] text-[#888888]">
+                  {topScoreOrg ? topScoreOrg.org_name : '—'}
+                </p>
+              </AtmosphericCard>
             </div>
 
-            <section className="mt-5 flex-1 border border-white/10 bg-[#111111] shadow-[0_4px_20px_rgba(229,9,20,0.1)]">
+            {/* Registry table */}
+            <section className="mt-5 flex-1 flex flex-col border border-white/10 bg-[#111111] shadow-[0_4px_20px_rgba(229,9,20,0.1)] min-h-0">
               <div className="flex items-end justify-between border-b border-white/10 px-5 py-5">
                 <div>
-                  <h1 className="text-2xl font-black uppercase tracking-[-0.04em] text-white">
+                  <p className="text-[0.65rem] uppercase tracking-[0.3em] text-[#888888]">
+                    IRS 990 · ProPublica Extract
+                  </p>
+                  <h1 className="mt-3 text-2xl font-black tracking-[-0.04em] text-white">
                     Global Registry
                   </h1>
-                  <p className="mt-2 text-sm text-[#888888]">Financial intelligence from IRS 990 filings.</p>
+                  <p className="mt-2 text-sm text-[#888888]">
+                    {loading ? 'Loading...' : `${filtered.length} of ${orgs.length} organizations · Sorted by lead score`}
+                  </p>
                 </div>
-                <div className="flex items-center gap-3 text-[0.68rem] uppercase tracking-[0.22em] text-[#888888]">
-                  <button className="border border-white/10 px-3 py-2 text-white">Filter State</button>
-                  <button className="border border-white/10 px-3 py-2 text-white">Revenue Class</button>
+                <div className="text-right text-[0.68rem] uppercase tracking-[0.22em] text-[#888888]">
+                  <p>Data Source</p>
+                  <p className="mt-1 text-white">ProPublica API v2</p>
+                  <p className="mt-3">Coverage</p>
+                  <p className="mt-1 text-white">2011 – 2024</p>
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-[920px] w-full border-collapse">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scrollbar-dark">
+                <table className="min-w-[1000px] w-full border-collapse">
                   <thead>
                     <tr className="border-b border-white/10 text-left text-[0.65rem] uppercase tracking-[0.28em] text-[#888888]">
                       <th className="px-5 py-4 font-semibold">EIN</th>
-                      <th className="px-5 py-4 font-semibold">Organization Name</th>
-                      <th className="px-5 py-4 font-semibold">State</th>
-                      <th className="px-5 py-4 font-semibold">Total Revenue</th>
+                      <th className="px-5 py-4 font-semibold">Organization</th>
+                      <th className="px-5 py-4 font-semibold">Location</th>
+                      <th className="px-5 py-4 font-semibold">NTEE</th>
+                      <th className="px-5 py-4 font-semibold">Revenue</th>
+                      <th className="px-5 py-4 font-semibold">Assets</th>
+                      <th className="px-5 py-4 font-semibold">Score</th>
                       <th className="px-5 py-4 font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.ein} className="border-b border-white/5 bg-[#101010] text-sm hover:bg-[#151515]">
-                        <td className="px-5 py-4 font-mono text-[#dcdcdc]">{row.ein}</td>
-                        <td className="px-5 py-4 text-white">{row.organizationName}</td>
-                        <td className="px-5 py-4 uppercase tracking-[0.16em] text-[#888888]">{row.state}</td>
-                        <td className="px-5 py-4 text-white">{formatCurrency(row.totalRevenue)}</td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-4 text-[0.72rem] uppercase tracking-[0.22em]">
-                            <Link
-                              className="text-[#E50914] no-underline transition-colors hover:text-white"
-                              to={`/lead-scoring/${row.ein}`}
-                            >
-                              View Detail
-                            </Link>
-                            <Link
-                              className="text-[#E50914] no-underline transition-colors hover:text-white"
-                              to={`/lookalike-match/${row.ein}`}
-                            >
-                              Export
-                            </Link>
-                          </div>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={8} className="px-5 py-16 text-center text-[0.65rem] uppercase tracking-[0.4em] text-[#333333]">
+                          Loading registry...
                         </td>
                       </tr>
-                    ))}
+                    ) : filtered.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-5 py-16 text-center text-sm text-[#444444]">
+                          No organizations match your search.
+                        </td>
+                      </tr>
+                    ) : (
+                      filtered.map((row) => (
+                        <tr
+                          key={row.ein}
+                          className="border-b border-white/5 bg-[#101010] text-sm transition-colors hover:bg-[#151515]"
+                        >
+                          <td className="px-5 py-4 font-mono text-xs text-[#888888]">
+                            {formatEIN(row.ein)}
+                          </td>
+                          <td className="px-5 py-4 max-w-[220px]">
+                            <span className="block truncate text-white">{row.org_name}</span>
+                          </td>
+                          <td className="px-5 py-4 text-xs text-[#888888]">
+                            {row.org_city && row.org_state
+                              ? `${row.org_city}, ${row.org_state}`
+                              : row.org_state ?? '—'}
+                          </td>
+                          <td className="px-5 py-4 text-xs text-[#888888]">
+                            {row.org_ntee_code ?? '—'}
+                          </td>
+                          <td className="px-5 py-4 text-xs text-white">
+                            {formatCurrency(row.totrevenue)}
+                          </td>
+                          <td className="px-5 py-4 text-xs text-[#888888]">
+                            {formatCurrency(row.totassetsend)}
+                          </td>
+                          <td className="px-5 py-4">
+                            {row.lead_score !== null ? (
+                              <span
+                                className="text-xs font-bold"
+                                style={{ color: scoreColor(row.lead_score) }}
+                              >
+                                {row.lead_score.toFixed(1)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-[#444444]">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-4 text-[0.68rem] uppercase tracking-[0.22em]">
+                              <button
+                                onClick={() => navigate(`/lead-scoring/formula`)}
+                                className="text-[#E50914] transition-colors hover:text-white"
+                              >
+                                Score
+                              </button>
+                              <button
+                                onClick={() => navigate(`/lookalike-match`)}
+                                className="text-[#E50914] transition-colors hover:text-white"
+                              >
+                                Lookalike
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
