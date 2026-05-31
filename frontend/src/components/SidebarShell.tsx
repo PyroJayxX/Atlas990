@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import SidebarBrand from './SidebarBrand'
 
 type SidebarItem = {
@@ -7,7 +7,7 @@ type SidebarItem = {
 }
 
 type SidebarShellProps = {
-  activeLabel: string
+  activeLabel?: string
 }
 
 const sidebarItems: SidebarItem[] = [
@@ -18,13 +18,15 @@ const sidebarItems: SidebarItem[] = [
 ]
 
 function SidebarShell({ activeLabel }: SidebarShellProps) {
+  const location = useLocation()
+
   return (
     <aside className="flex w-[350px] flex-col border-r border-white/10 bg-[#111111] px-4 py-4">
       <SidebarBrand />
 
       <nav className="mt-5 space-y-1">
         {sidebarItems.map((item) => {
-          const active = item.label === activeLabel
+          const active = location.pathname === item.path || item.label === activeLabel
 
           return (
             <Link
