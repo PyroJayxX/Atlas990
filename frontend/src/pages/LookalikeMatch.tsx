@@ -44,7 +44,7 @@ type OrgListResponse = {
 
 // Constants
 
-const API_BASE = 'http://localhost:8000/api/v1'
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api/v1'
 const DISPLAY_TWIN_COUNT = 6
 const MAX_EXPORT_TWIN_COUNT = 20
 
