@@ -6,9 +6,7 @@ import LeadScoringTopNav from '../components/LeadScoringTopNav'
 import SidebarShell from '../components/SidebarShell'
 import { downloadCsv, type CsvColumn } from '../utils/exportCsv'
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 type OrgSummary = {
   ein:           string
@@ -31,15 +29,11 @@ type OrgExportRow = OrgSummary & {
   lead_score: number | null
 }
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api/v1'
 
-// ---------------------------------------------------------------------------
 // Formatters
-// ---------------------------------------------------------------------------
 
 function formatCurrency(value: number | null): string {
   if (value === null || value === undefined) return '—'
@@ -63,9 +57,7 @@ function scoreColor(score: number): string {
   return '#888888'
 }
 
-// ---------------------------------------------------------------------------
 // Main page
-// ---------------------------------------------------------------------------
 
 function Dashboard() {
   const navigate = useNavigate()
