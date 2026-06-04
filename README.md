@@ -6,8 +6,9 @@ A full-stack web application built with React and FastAPI that cleans raw public
 
 #### [Try it yourself!](https://atlas990.vercel.app)
 
-Note: this app is designed for desktop/tablet viewing and is not optimized for mobile.
-
+#### Notes: 
+- This app is designed for desktop/tablet viewing and is not optimized for mobile view.
+- The backend is hosted with free-tier Render and sleeps after days of inactivity, the server may need 1-2 minutes to boot up on launch.
 
 ## App Areas
 - Overview Page: the main registry view with summary metrics, searchable rows, and range-based CSV export
